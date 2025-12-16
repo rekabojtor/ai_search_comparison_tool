@@ -16,7 +16,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # Install requirements
-pip3 -r requirements.txt
+pip3 install -r requirements.txt
 
 # Run the script
 python3 <script>.py
