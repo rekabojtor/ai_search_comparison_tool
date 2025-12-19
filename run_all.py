@@ -1,34 +1,40 @@
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl
 from typing import List
 import csv
 from datetime import datetime
 from openai import OpenAI
 from perplexity import Perplexity
 from google import genai
+from google.genai import types
 
-PROMPTS = [
-    "Kiez-Laufnacht 2026",
-    #"Berlin night run 7 km 2026",
-    #"community night run Berlin 2026",
-    #"non-competitive night run Berlin May 2026",
-    #"night run Friedrichshain Lichtenberg Rummelsburg",
-    #"Kaskelkiez night run event 2026",
-    #"Berlin night run requiring headlamp and reflective vest",
-    #"free Berlin night run with 300 participant limit",
-]
+OUTPUT_CSV = "retrievals.csv"
 
-class Event(BaseModel):
-    prompt: str
-    source_urls: List[str]
-    event_name: str
-    event_start_date: str
-    event_distance: str
-    event_location: str
-    event_rules: str
-    event_tracking_token: str
-    output_text: str
+# TODO: Add more use cases and prompts below
+PROMPTS = {
+    "Running night": [
+        # "Kiez-Laufnacht 2026",
+        # "Berlin night run 7 km 2026",
+        # "community night run Berlin 2026",
+        "non-competitive night run Berlin May 2026",
+        # "night run Friedrichshain Lichtenberg Rummelsburg",
+        # "Kaskelkiez night run event 2026",
+        # "Berlin night run requiring headlamp and reflective vest",
+        # "free Berlin night run with 300 participant limit",
+    ],
+}
 
+
+# Use this class to define the structure of the expected output
+# Add or remove fields as necessary
+class Content(BaseModel):
+    content_title: str
+    content_summary: str
+    content_tracking_token: str
+    source_urls: List[str]  # Do not change this field name
+
+
+# Sanitize function to clean up text for CSV
 def sanitize(value: str) -> str:
     if value is None:
         return ""
@@ -40,46 +46,52 @@ def sanitize(value: str) -> str:
         .strip()
     )
 
-def write_event_csv(event: Event, platform: str):
-    with open("retrievals.csv", "a+", encoding="utf-8", newline="") as f:
+
+# Write each row separately to file
+def write_event_csv(platform: str, usecase: str, prompt: str, content: Content):
+    with open(OUTPUT_CSV, "a+", encoding="utf-8", newline="") as f:
         writer = csv.writer(f, delimiter="|")
         writer.writerow([
-            sanitize(platform),
-            sanitize(event.prompt),
             datetime.now(),
-            sanitize(",".join(event.source_urls)),
-            sanitize(event.event_name),
-            sanitize(event.event_start_date),
-            sanitize(event.event_distance),
-            sanitize(event.event_location),
-            sanitize(event.event_rules),
-            sanitize(event.event_tracking_token),
-            sanitize(event.output_text),
+            sanitize(platform),
+            sanitize(usecase),
+            sanitize(prompt),
+            sanitize(content.content_title),
+            sanitize(content.content_summary),
+            sanitize(content.content_tracking_token),
+            sanitize(",".join(content.source_urls)),
         ])
 
-def fetch_chatgpt(prompt: str) -> Event:
+
+# ChatGPT implementation
+def fetch_chatgpt(prompt: str, tools: List[dict]) -> Content:
     client = OpenAI()
     response = client.responses.parse(
         model="gpt-5-nano",
-        tools=[{"type": "web_search"}],
-        text_format=Event,
+        tools=tools,
+        text_format=Content,
         input=prompt,
     )
     return response.output_parsed
 
-def fetch_gemini(prompt: str) -> Event:
+
+# Gemini implementation
+def fetch_gemini(prompt: str, tools: List[types.Tool]) -> Content:
     client = genai.Client()
     response = client.models.generate_content(
-        model="gemini-3-pro-preview",
+        model="gemini-3-flash-preview",
         contents=prompt,
         config={
             "response_mime_type": "application/json",
-            "response_json_schema": Event.model_json_schema(),
+            "response_json_schema": Content.model_json_schema(),
+            "tools": tools,
         },
     )
-    return Event.model_validate_json(response.text)
+    return Content.model_validate_json(response.text)
 
-def fetch_perplexity(prompt: str) -> Event:
+
+# Perplexity implementation
+def fetch_perplexity(prompt: str, web_search_options: dict) -> Content:
     client = Perplexity()
     response = client.chat.completions.create(
         model="sonar",
@@ -92,21 +104,37 @@ def fetch_perplexity(prompt: str) -> Event:
         response_format={
             "type": "json_schema",
             "json_schema": {
-                "schema": Event.model_json_schema()
+                "schema": Content.model_json_schema()
             },
         },
+        web_search_options=web_search_options,
     )
-    return Event.model_validate_json(response.choices[0].message.content)
+    return Content.model_validate_json(response.choices[0].message.content)
+
 
 if __name__ == "__main__":
     load_dotenv()
     print("----------START----------")
-    for p in PROMPTS:
-        print(f"[{datetime.now()}] Prompt: {p}")
-        print(f"[{datetime.now()}] Running Chat GPT...")
-        write_event_csv(fetch_chatgpt(p), "chatgpt")
-        print(f"[{datetime.now()}] Running Gemini...")
-        write_event_csv(fetch_gemini(p), "gemini")
-        print(f"[{datetime.now()}] Running Perplexity...")
-        write_event_csv(fetch_perplexity(p), "perplexity")
+    for usecase in PROMPTS:
+        print(f"[{datetime.now()}] Use case: {usecase}")
+        for prompt in PROMPTS[usecase]:
+            print(f"[{datetime.now()}] Prompt: {prompt}")
+
+            # Run prompt against ChatGPT chat and web search
+            print(f"[{datetime.now()}] Running Chat GPT...")
+            write_event_csv("chatgpt", usecase, prompt, fetch_chatgpt(prompt, []))
+            print(f"[{datetime.now()}] Running Chat GPT web search...")
+            write_event_csv("chatgpt", usecase, prompt, fetch_chatgpt(prompt, [{"type": "web_search"}]))
+
+            # Run prompt against Gemini chat and web search
+            print(f"[{datetime.now()}] Running Gemini...")
+            write_event_csv("gemini", usecase, prompt, fetch_gemini(prompt, []))
+            print(f"[{datetime.now()}] Running Gemini websearch...")
+            write_event_csv("gemini", usecase, prompt, fetch_gemini(prompt, [types.Tool(google_search=types.GoogleSearch())]))
+
+            # Run prompt against Perplexity chat and web search
+            print(f"[{datetime.now()}] Running Perplexity...")
+            write_event_csv("perplexity", usecase, prompt, fetch_perplexity(prompt, {}))
+            print(f"[{datetime.now()}] Running Perplexity websearch...")
+            write_event_csv("perplexity", usecase, prompt, fetch_perplexity(prompt, {"search_type": "auto"}))
     print("----------END----------")
