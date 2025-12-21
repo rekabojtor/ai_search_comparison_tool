@@ -129,17 +129,17 @@ if __name__ == "__main__":
             print(f"[{datetime.now()}] Running Chat GPT...")
             write_event_csv("chatgpt", usecase, prompt, fetch_chatgpt(prompt, []))
             print(f"[{datetime.now()}] Running Chat GPT web search...")
-            write_event_csv("chatgpt", usecase, prompt, fetch_chatgpt(prompt, [{"type": "web_search"}]))
+            write_event_csv("chatgpt-websearch", usecase, prompt, fetch_chatgpt(prompt, [{"type": "web_search"}]))
 
             # Run prompt against Gemini chat and web search
             print(f"[{datetime.now()}] Running Gemini...")
             write_event_csv("gemini", usecase, prompt, fetch_gemini(prompt, []))
             print(f"[{datetime.now()}] Running Gemini websearch...")
-            write_event_csv("gemini", usecase, prompt, fetch_gemini(prompt, [types.Tool(google_search=types.GoogleSearch())]))
+            write_event_csv("gemini-websearch", usecase, prompt, fetch_gemini(prompt, [types.Tool(google_search=types.GoogleSearch())]))
 
             # Run prompt against Perplexity chat and web search
             print(f"[{datetime.now()}] Running Perplexity...")
             write_event_csv("perplexity", usecase, prompt, fetch_perplexity(prompt, {}))
             print(f"[{datetime.now()}] Running Perplexity websearch...")
-            write_event_csv("perplexity", usecase, prompt, fetch_perplexity(prompt, {"search_type": "auto"}))
+            write_event_csv("perplexity-websearch", usecase, prompt, fetch_perplexity(prompt, {"search_type": "auto"}))
     print("----------END----------")
