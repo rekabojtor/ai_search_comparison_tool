@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from pydantic import BaseModel, HttpUrl
 from typing import List
+from pathlib import Path
 import csv
 from datetime import datetime
 from openai import OpenAI
@@ -8,7 +9,9 @@ from perplexity import Perplexity
 from google import genai
 from google.genai import types
 
-OUTPUT_CSV = "retrievals.csv"
+# Ensure the output CSV is created next to this script, regardless of current working dir
+SCRIPT_DIR = Path(__file__).resolve().parent
+OUTPUT_CSV = SCRIPT_DIR / "retrievals.csv"
 
 # TODO: Add more use cases and prompts below
 PROMPTS = {
