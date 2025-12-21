@@ -211,3 +211,5 @@ __marimo__/
 **/.terraform
 terraform.tfstate
 **/terraform.tfstate
+terraform.tfstate.backup
+**/terraform.tfstate.backup
